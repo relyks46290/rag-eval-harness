@@ -1,0 +1,70 @@
+{
+  "name": "sample-corpus",
+  "description": "Twelve questions answerable from corpus/. Two are exact-identifier questions carrying an `expect` list, which turns them into a string-matchable correctness gate on retrieval.",
+  "questions": [
+    {
+      "id": "chroma-distance-key",
+      "area": "entities/chromadb",
+      "exact_id": true,
+      "expect": ["hnsw:space", "cosine"],
+      "question": "Which collection metadata key selects ChromaDB's distance function, and which value does this pipeline set it to?"
+    },
+    {
+      "id": "ollama-residency-field",
+      "area": "entities/ollama",
+      "exact_id": true,
+      "expect": ["keep_alive", "30m"],
+      "question": "Which Ollama request field controls how long a model stays loaded after a request, and what value does this pipeline use?"
+    },
+    {
+      "id": "fence-indivisible",
+      "area": "concepts/chunking-strategy",
+      "question": "Why does the chunker treat a fenced code block as indivisible, and what does it do when a single fenced block exceeds the character budget?"
+    },
+    {
+      "id": "chunking-tiers",
+      "area": "concepts/chunking-strategy",
+      "question": "Describe the three tiers of the chunking strategy and explain why splitting on markdown headers is preferred over a fixed width."
+    },
+    {
+      "id": "deliberate-overshoot",
+      "area": "concepts/chunking-strategy",
+      "question": "Under what circumstances is a chunk allowed to exceed the character budget, and what is the reasoning behind allowing it?"
+    },
+    {
+      "id": "reliability-not-accuracy",
+      "area": "concepts/reliability-vs-accuracy",
+      "question": "What is the difference between reliability and accuracy in evaluating a RAG system, and why does reliability deserve its own harness?"
+    },
+    {
+      "id": "survivorship-bias",
+      "area": "concepts/reliability-vs-accuracy",
+      "question": "How can measuring only accuracy hide an unreliable model, and what bias does that introduce?"
+    },
+    {
+      "id": "dense-exact-tokens",
+      "area": "concepts/exact-identifier-retrieval",
+      "question": "Why is dense vector retrieval weak on queries whose answer is a literal identifier, and what kind of retrieval has the opposite failure profile?"
+    },
+    {
+      "id": "embedding-swap-cost",
+      "area": "concepts/embedding-model-lock-in",
+      "question": "What happens to an existing vector index when the embedding model changes, and what two design rules follow from that?"
+    },
+    {
+      "id": "context-ceiling-cost",
+      "area": "concepts/context-budget",
+      "question": "Why is configuring a model's full advertised context window expensive, and how should a working value be chosen instead?"
+    },
+    {
+      "id": "generation-cap-purpose",
+      "area": "concepts/context-budget",
+      "question": "What is the purpose of a hard cap on generated tokens, and why is it a liveness guarantee rather than a quality setting?"
+    },
+    {
+      "id": "rag-vs-finetune",
+      "area": "concepts/retrieval-augmented-generation",
+      "question": "How does retrieval-augmented generation differ from fine-tuning as a way of giving a model new knowledge, and why must retrieval and generation be evaluated separately?"
+    }
+  ]
+}

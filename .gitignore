@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Vector store. Rebuilt from the corpus with `python rag.py index`.
+.chroma/
+
+# Eval runs. Keep the ones you want to compare against; the rest are noise.
+results/*.json
+!results/.gitkeep
