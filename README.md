@@ -1,19 +1,19 @@
 # rag-eval-harness
 
-A local RAG pipeline over a markdown corpus, and a harness that measures whether
-it actually answers.
+A reliability-first eval harness for RAG pipelines. No LLM in the scoring path.
+Same inputs, same output, every time.
 
-Everything runs on your own machine. Ollama for embeddings and generation,
-ChromaDB for storage, no API keys and no network calls off localhost.
+Ships with a local RAG pipeline (Ollama + ChromaDB over a markdown corpus) as
+the default system under test. The eval itself is backend-agnostic: `eval.py`
+scores answers as strings against deterministic criteria. Swap the pipeline,
+keep the harness.
 
 ```
-markdown corpus ──> fence-aware chunker ──> nomic-embed-text ──> ChromaDB
-                                                                     │
-question ──> embed ──> top-5 cosine ──> prompt ──> chat model ──> answer
-                                                       │
-                                            eval.py ──> results/*.json
-                                                       │
-                                            --compare ──> exit 1 on regression
+question set ──> pipeline under test ──> answers
+                                           │
+                               eval.py ──> results/*.json
+                                           │
+                               --compare ──> exit 1 on regression
 ```
 
 ## Why this exists
@@ -57,6 +57,36 @@ only stops the runtime from separating `thinking` from `content`. The model stil
 reasons, still burns the budget, and now the reasoning is invisible instead of
 merely unwanted. `NUM_PREDICT` is therefore set as a liveness guarantee, not as a
 quality knob.
+
+## The scoring function
+
+`classify()` in `eval.py` is a pure function of three inputs: the answer text,
+the error (or `None`), and the expect list. No model call, no network, no
+randomness, no clock. It applies three checks in order:
+
+1. Did the query error? Fail.
+2. Is the answer shorter than 20 characters? Fail (`too-short` or `empty`).
+3. Does the question carry an `expect` list? Every expected string must appear
+   in the answer, case-insensitive. Missing any one fails the question with
+   `missing:<tokens>`.
+
+That is the entire scoring path. It is deterministic by construction, not by
+configuration.
+
+## Reproducible generation
+
+Generation is seeded. `rag.py` sends `temperature: 0.0` and `seed: 0` to
+Ollama, so the same question returns the same text on the same machine with the
+same model build. Without these, a single eval run is unreproducible and
+`--compare` cannot separate a real regression from sampling variance.
+
+The limit: seeding pins sampling, not the whole stack. A different Ollama build,
+quantization, or batch size can still shift output. A seeded run is reproducible
+on one machine with one model build, not across machines.
+
+`eval.py` records `temperature` and `seed` in every results file. `--compare`
+warns when either value changed between two runs, including when the earlier run
+predates seeding and carries no key at all.
 
 ## Quickstart
 
@@ -137,8 +167,9 @@ Each run writes one JSON file with per-question rows:
 | `latency_s` | Compared only across questions that passed in both runs |
 | `top_similarity`, `pages` | Separates a retrieval failure from a generation failure |
 | `embed_model` | `--compare` warns loudly if this changed between runs |
+| `temperature`, `seed` | `--compare` warns if either changed between runs |
 
-That last one matters more than it looks. Changing the embedding model
+That last row matters more than it looks. Changing the embedding model
 invalidates every stored vector. The index does not error, it just quietly
 retrieves against a mismatched space, and the comparison you are about to make is
 meaningless. There is no migration path short of a full re-index, so the harness
@@ -147,6 +178,19 @@ warns rather than pretending the two runs are comparable.
 `--compare` reports fixes and regressions separately and on purpose. One question
 fixed and one broken nets to zero on the pass rate, and that is not "no change".
 `test_an_equal_pass_rate_still_reports_a_regression` pins that behaviour.
+
+## The pipeline (swappable)
+
+The shipped pipeline in `rag.py` is one implementation the harness tests:
+
+- Ollama for embeddings (`nomic-embed-text`) and generation (`llama3.1:8b`)
+- ChromaDB for vector storage
+- A fence-aware markdown chunker that keeps code blocks indivisible
+- Everything on localhost, no API keys
+
+To test a different backend, replace `rag.py` or write an adapter that produces
+the same per-question record format. `eval.py` does not import `rag.py` at
+scoring time. It reads JSON.
 
 ## The chunker
 
@@ -175,7 +219,8 @@ python tests/test_pipeline.py       # 21 tests, no model server required
 
 CI runs these on 3.10 and 3.12. They cover chunking (including the fence
 invariant against the real corpus), frontmatter parsing, `classify`,
-question-set validation, and `compare` against synthetic fixtures.
+question-set validation, `compare` against synthetic fixtures, and the seeding
+contract.
 
 **They do not test retrieval quality**, and no unit test can. Whether the right
 chunk comes back for a given question is what `eval.py` measures, against a real
