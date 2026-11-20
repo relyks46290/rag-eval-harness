@@ -160,6 +160,7 @@ def print_summary(records: list[dict], model: str, total_s: float, set_name: str
     print(f"question set: {set_name}   model: {model}   embed: {rag.EMBED_MODEL}")
     print(f"top_k={rag.TOP_K}  num_ctx={rag.NUM_CTX}  num_predict={rag.NUM_PREDICT}  "
           f"min_answer_chars={MIN_ANSWER_CHARS}")
+    print(f"temperature={rag.TEMPERATURE}  seed={rag.SEED}  (greedy decoding, fixed seed)")
     print(f"\npass rate: {len(passed)}/{n} ({len(passed) / n if n else 0:.0%})"
           f"   wall clock: {total_s:.1f}s")
 
@@ -206,6 +207,8 @@ def write_results(
         "top_k": rag.TOP_K,
         "num_ctx": rag.NUM_CTX,
         "num_predict": rag.NUM_PREDICT,
+        "temperature": rag.TEMPERATURE,
+        "seed": rag.SEED,
         "min_answer_chars": MIN_ANSWER_CHARS,
         "total_questions": len(records),
         "passed": len(passed),
@@ -257,6 +260,16 @@ def compare(before_path: str, after_path: str) -> int:
         print(f"\nWARNING: embedding model changed, "
               f"{before.get('embed_model')} -> {after.get('embed_model')}. "
               f"Retrieval differences dominate any model comparison across this boundary.")
+
+    # A seeded run and an unseeded one are not comparable. Sampling variance
+    # alone can move a question across the pass boundary, so a diff across that
+    # change cannot attribute anything. Runs predating seeding carry no key.
+    for field in ("temperature", "seed"):
+        b_val, a_val = before.get(field, "unset"), after.get(field, "unset")
+        if b_val != a_val:
+            print(f"\nWARNING: {field} changed, {b_val} -> {a_val}. "
+                  f"Sampling differences can move a question across the pass "
+                  f"boundary on their own. This diff cannot attribute a change.")
 
     only_before = sorted(set(b) - set(a))
     only_after = sorted(set(a) - set(b))

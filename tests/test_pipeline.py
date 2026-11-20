@@ -217,7 +217,12 @@ def test_a_malformed_question_set_is_rejected():
 
 # --- comparison ---
 
-def _run_file(path: str, rows: list[tuple[str, bool, float]], model: str = "m") -> None:
+def _run_file(
+    path: str,
+    rows: list[tuple[str, bool, float]],
+    model: str = "m",
+    extra: dict | None = None,
+) -> None:
     results = [{
         "id": rid, "area": "", "exact_id": False, "expect": [],
         "question": "?", "passed": ok, "fail_reason": None if ok else "empty",
@@ -225,18 +230,27 @@ def _run_file(path: str, rows: list[tuple[str, bool, float]], model: str = "m") 
         "done_reason": "stop" if ok else "length", "error": None,
         "pages": [], "top_similarity": None, "answer": "x" * 100 if ok else "",
     } for rid, ok, lat in rows]
+    payload = {
+        "timestamp": "t", "question_set": "t", "chat_model": model,
+        "embed_model": "e", "total_questions": len(rows),
+        "passed": sum(1 for _, ok, _ in rows if ok), "results": results,
+    }
+    payload.update(extra or {})
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({
-            "timestamp": "t", "question_set": "t", "chat_model": model,
-            "embed_model": "e", "total_questions": len(rows),
-            "passed": sum(1 for _, ok, _ in rows if ok), "results": results,
-        }, f)
+        json.dump(payload, f)
 
 
 def _quiet_compare(before: str, after: str) -> int:
     """compare() prints a human-readable report; the tests only want its exit code."""
     with contextlib.redirect_stdout(io.StringIO()):
         return harness.compare(before, after)
+
+
+def _compare_output(before: str, after: str) -> str:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        harness.compare(before, after)
+    return buf.getvalue()
 
 
 def test_compare_flags_a_regression_and_exits_nonzero():
@@ -264,6 +278,37 @@ def test_an_equal_pass_rate_still_reports_a_regression():
         _run_file(after, [("q1", False, 1.0), ("q2", True, 1.0)])
         assert _quiet_compare(before, after) == 1, \
             "1/2 before and 1/2 after is not 'no change'"
+
+
+def test_compare_warns_when_a_run_was_not_seeded():
+    """A seeded run and an unseeded one are not comparable. Sampling variance
+    alone can move a question across the pass boundary, so the diff cannot
+    attribute the change to anything. Runs predating seeding carry no key."""
+    with tempfile.TemporaryDirectory() as d:
+        before, after = os.path.join(d, "b.json"), os.path.join(d, "a.json")
+        _run_file(before, [("q1", True, 1.0)])
+        _run_file(after, [("q1", True, 1.0)], extra={"temperature": 0.0, "seed": 0})
+        out = _compare_output(before, after)
+        assert "temperature changed, unset -> 0.0" in out, out
+        assert "seed changed, unset -> 0" in out, out
+
+
+def test_compare_is_silent_when_both_runs_carry_the_same_seed():
+    seeded = {"temperature": 0.0, "seed": 0}
+    with tempfile.TemporaryDirectory() as d:
+        before, after = os.path.join(d, "b.json"), os.path.join(d, "a.json")
+        _run_file(before, [("q1", True, 1.0)], extra=seeded)
+        _run_file(after, [("q1", True, 1.0)], extra=seeded)
+        out = _compare_output(before, after)
+        assert "temperature changed" not in out, out
+        assert "seed changed" not in out, out
+
+
+def test_the_shipped_pipeline_requests_greedy_decoding():
+    """The determinism claim depends on these two values, so assert them rather
+    than trusting that nobody reverted the options dict."""
+    assert rag.TEMPERATURE == 0.0
+    assert rag.SEED is not None
 
 
 def main() -> int:

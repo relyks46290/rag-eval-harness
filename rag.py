@@ -71,6 +71,15 @@ KEEP_ALIVE = "30m"
 # cap the request simply never returns. A capped run fails in seconds and says
 # why, which is recoverable. Real answers here run a few hundred tokens.
 NUM_PREDICT = 2048
+# Greedy decoding with a fixed seed. Without these, Ollama applies the model's
+# default sampling and the same question returns different text on every run,
+# which makes a single eval run unreproducible and makes --compare unable to
+# separate a real regression from sampling variance.
+# Note the limit: this pins sampling, not the whole stack. A different Ollama
+# build, quantization, or batch size can still shift output, so a seeded run is
+# reproducible on one machine with one model build, not across machines.
+TEMPERATURE = 0.0
+SEED = 0
 
 SKIP_FILES = {"log.md", "index.md", "README.md"}
 
@@ -393,7 +402,12 @@ def query(
             # then lands in "content" with no stop discipline and generation runs
             # away until num_predict cuts it off, producing no answer at all.
             "keep_alive": KEEP_ALIVE,
-            "options": {"num_ctx": NUM_CTX, "num_predict": NUM_PREDICT},
+            "options": {
+                "num_ctx": NUM_CTX,
+                "num_predict": NUM_PREDICT,
+                "temperature": TEMPERATURE,
+                "seed": SEED,
+            },
         },
         stream=True,
         timeout=600,
