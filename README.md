@@ -1,4 +1,4 @@
-# local-rag-eval
+# rag-eval-harness
 
 A local RAG pipeline over a markdown corpus, and a harness that measures whether
 it actually answers.
