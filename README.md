@@ -76,13 +76,15 @@ configuration.
 ## Reproducible generation
 
 Generation is seeded. `rag.py` sends `temperature: 0.0` and `seed: 0` to
-Ollama, so the same question returns the same text on the same machine with the
-same model build. Without these, a single eval run is unreproducible and
-`--compare` cannot separate a real regression from sampling variance.
+Ollama. Without these, a single eval run is unreproducible and `--compare`
+cannot separate a real regression from sampling variance.
 
-The limit: seeding pins sampling, not the whole stack. A different Ollama build,
-quantization, or batch size can still shift output. A seeded run is reproducible
-on one machine with one model build, not across machines.
+Seeding does not guarantee identical text. Two seeded `llama3.1:8b` runs of the
+12 sample questions, on the same machine with the same model build, returned
+identical text for 7 of 12 answers. Pass or fail matched on all 12. Two possible
+causes are the order of floating-point operations on the GPU backend and a cold
+model load on the first run. No test has separated them yet. A different Ollama
+build, quantization, or batch size can change output further.
 
 `eval.py` records `temperature` and `seed` in every results file. `--compare`
 warns when either value changed between two runs, including when the earlier run
